@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Slot Booking</title>
+<style>
+:root{--bg:#f4f6f8;--surface:#fff;--ink:#14213d;--mute:#5b6678;--line:#d9dee6;--acc:#0f766e;--acc-ink:#fff;--sel:#f59e0b;--held:#fde7b0;--booked:#e3e6ea;--bookedink:#8a93a1;--err:#b42318;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1522;--surface:#161f30;--ink:#e8edf5;--mute:#9aa6ba;--line:#2a364b;--acc:#2dd4bf;--acc-ink:#06241f;--sel:#f59e0b;--held:#5a4614;--booked:#222c3d;--bookedink:#6f7b90;--err:#f97066;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0e1522;--surface:#161f30;--ink:#e8edf5;--mute:#9aa6ba;--line:#2a364b;--acc:#2dd4bf;--acc-ink:#06241f;--sel:#f59e0b;--held:#5a4614;--booked:#222c3d;--bookedink:#6f7b90;--err:#f97066;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 40px}
+h1{font:700 1.7rem/1.2 Georgia,"Times New Roman",serif;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 18px}
+.layout{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
+@media(max-width:860px){.layout{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+label{font-size:.85rem;color:var(--mute);display:block;margin-bottom:4px}
+input[type=date],input[type=text],input[type=tel]{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.sessions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.sess{flex:1;min-width:130px;text-align:left;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer;font:inherit}
+.sess b{display:block}.sess span{font-size:.8rem;color:var(--mute)}
+.sess[aria-pressed=true]{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--mute);margin-bottom:12px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:5px;border:1px solid var(--line)}
+.scroll{overflow-x:auto}
+table{border-collapse:separate;border-spacing:6px;width:100%;min-width:520px}
+td{padding:0}
+.slot{width:100%;aspect-ratio:1/0.8;min-height:40px;border-radius:6px;border:1.5px solid var(--acc);background:var(--surface);color:var(--ink);font:600 .95rem inherit;cursor:pointer}
+.slot:hover{background:color-mix(in srgb,var(--acc) 14%,var(--surface))}
+.slot.sel{background:var(--sel);border-color:var(--sel);color:#1a1200}
+.slot.held{background:var(--held);border-color:var(--held);color:var(--ink);cursor:not-allowed}
+.slot.booked{background:var(--booked);border-color:var(--booked);color:var(--bookedink);cursor:not-allowed;text-decoration:line-through}
+:focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+.panel h2{font:700 1.1rem Georgia,serif;margin:0 0 10px}
+.sum{display:flex;justify-content:space-between;margin:4px 0}
+.total{font-weight:700;font-size:1.15rem;border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+.field{margin:10px 0}
+.methods{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}
+.m{padding:9px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer;font:inherit}
+.m[aria-pressed=true]{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+.btn{width:100%;padding:11px;border:0;border-radius:8px;background:var(--acc);color:var(--acc-ink);font:700 1rem inherit;cursor:pointer}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line);margin-top:8px}
+.err{color:var(--err);font-size:.88rem;min-height:1.2em;margin:6px 0 0}
+.note{font-size:.82rem;color:var(--mute);margin-top:10px}
+.ref{font:600 1.05rem ui-monospace,Consolas,monospace;background:var(--bg);border:1px dashed var(--line);padding:8px;border-radius:6px;text-align:center;margin:8px 0}
+.timer{font-weight:700;color:var(--sel)}
+.ok{color:var(--acc);font-weight:700}
+.list{margin-top:18px}.list h2{font:700 1.1rem Georgia,serif;margin:0 0 8px}
+.bk{border-top:1px solid var(--line);padding:8px 0;font-size:.92rem}
+.bk:first-of-type{border-top:0}
+.qr{display:block;width:100%;max-width:280px;margin:8px auto;border-radius:8px;border:1px solid var(--line)}
+input.txn{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+.adm{display:flex;gap:8px;margin-top:8px}.adm .btn{padding:8px}.btn.red{background:var(--err);color:#fff}
+.link{background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer;font:inherit;font-size:.85rem;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Slot booking</h1>
+  <p class="sub">Pick a date and session, choose your slots, then pay by InstaPay QR. A booking is only confirmed after payment is confirmed.</p>
+  <p class="err" id="banner" style="margin:0 0 12px"></p>
+  <div class="layout">
+    <div>
+      <div class="card">
+        <div class="row"><div style="max-width:220px;flex:1"><label for="date">Date</label><input type="date" id="date"></div></div>
+        <div class="sessions" id="sessions" role="group" aria-label="Sessions"></div>
+        <div class="legend"><span><i style="background:var(--surface);border-color:var(--acc)"></i>Available</span><span><i style="background:var(--sel)"></i>Selected</span><span><i style="background:var(--held)"></i>Awaiting payment</span><span><i style="background:var(--booked)"></i>Booked</span></div>
+        <div class="scroll"><table aria-label="Slots"><tbody id="grid"></tbody></table></div>
+      </div>
+      <button class="link" id="admbtn" style="margin:0 0 12px">Owner sign in</button>
+      <div class="card list" id="admin" hidden><h2>Admin: payments to verify</h2><div id="pending"></div><h2 style="margin-top:16px">Confirmed bookings</h2><div id="done"></div><button class="btn ghost" id="dl" style="margin-top:12px">Download spreadsheet (CSV)</button></div>
+    </div>
+    <aside class="card panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div>
+<script>
+var QR="qr.jpg",TOTAL=50,COLS=10,PRICE=150,ACCOUNT="RENZ MARION LEROG · MariBank ****1235";
+var SESSIONS=[{id:"s1",label:"4:00 pm – 5:00 pm"},{id:"s2",label:"5:30 pm – 6:30 pm"},{id:"s3",label:"7:00 pm – 8:00 pm"}];
+var HOLDS={},BOOKED={},PENDING=[],DONE=[],token=null,isAdmin=false,busy=false,ready=false;
+var S={date:today(),sess:"s1",sel:[],name:"",phone:"",pid:null,phase:null,snap:null,err:"",receipt:null};
+try{token=localStorage.getItem("adm")}catch(e){}
+function today(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
+function money(n){return "₱"+n.toLocaleString("en-PH")}
+function sessLabel(id){return SESSIONS.filter(function(s){return s.id===id})[0].label}
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function fmt(s){s=Math.max(0,s);var m=Math.floor(s/60),r=s%60;return m+":"+(r<10?"0":"")+r}
+function taken(s,n){return !!BOOKED[s+":"+n]||!!HOLDS[s+":"+n]}
+function secsLeft(){return S.snap?Math.round((S.snap.expires-Date.now())/1000):0}
+function saveMine(){try{if(S.pid)localStorage.setItem("mine",JSON.stringify({pid:S.pid}));else localStorage.removeItem("mine")}catch(e){}}
+async function api(path,body){var o={headers:{"Content-Type":"application/json"}};if(token)o.headers.Authorization="Bearer "+token;if(body!==undefined){o.method="POST";o.body=JSON.stringify(body)}
+  var r=await fetch("/api"+path,o),j={};try{j=await r.json()}catch(e){}if(!r.ok){j.http=r.status;throw j}return j}
+function setSnap(j){S.snap={id:j.id,date:j.date,sess:j.sess,slots:j.slots,total:j.total,txn:j.txn,expires:Date.now()+j.left*1000}}
+
+function renderSessions(){var h="";SESSIONS.forEach(function(s){var n=0;for(var i=1;i<=TOTAL;i++)if(taken(s.id,i))n++;
+  h+='<button class="sess" data-s="'+s.id+'" aria-pressed="'+(S.sess===s.id)+'"><b>'+s.label+'</b><span>'+(TOTAL-n)+' of '+TOTAL+' free</span></button>'});document.getElementById("sessions").innerHTML=h}
+function renderGrid(){var h="";for(var r=0;r<TOTAL/COLS;r++){h+="<tr>";for(var c=1;c<=COLS;c++){var n=r*COLS+c,cls="slot",dis="",lab="Slot "+n+", available";
+  if(BOOKED[S.sess+":"+n]){cls+=" booked";dis=" disabled";lab="Slot "+n+", booked"}
+  else if(HOLDS[S.sess+":"+n]){cls+=" held";dis=" disabled";lab="Slot "+n+", awaiting payment"}
+  else if(S.sel.indexOf(n)>-1){cls+=" sel";lab="Slot "+n+", selected"}
+  h+='<td><button class="'+cls+'" data-n="'+n+'"'+dis+' aria-label="'+lab+'">'+n+'</button></td>'}h+="</tr>"}document.getElementById("grid").innerHTML=h}
+function renderAdmin(){var a=document.getElementById("admin");a.hidden=!isAdmin;document.getElementById("admbtn").textContent=isAdmin?"Owner sign out":"Owner sign in";if(!isAdmin)return;
+  document.getElementById("pending").innerHTML=PENDING.length?PENDING.map(function(p){return '<div class="bk"><b>'+esc(p.name)+'</b> · '+esc(p.phone)+'<br>'+p.date+' · '+sessLabel(p.sess)+' · Slots '+p.slots.join(", ")+'<br>Amount '+money(p.total)+' · InstaPay ref <b>'+esc(p.txn)+'</b><div class="adm"><button class="btn" data-ok="'+p.id+'">Confirm payment received</button><button class="btn red" data-no="'+p.id+'">Reject</button></div></div>'}).join(""):'<p class="note" style="margin:0">No payments waiting for verification.</p>';
+  document.getElementById("done").innerHTML=DONE.length?DONE.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.sess<b.sess?-1:0}).map(function(p){return '<div class="bk"><b>'+esc(p.name)+'</b> · '+esc(p.phone)+' · '+p.date+' · '+sessLabel(p.sess)+' · Slots '+p.slots.join(", ")+'<br><span style="color:var(--mute)">'+money(p.total)+' · InstaPay ref '+esc(p.txn)+'</span></div>'}).join(""):'<p class="note" style="margin:0">Nothing confirmed yet.</p>'}
+function renderPanel(){var p=document.getElementById("panel"),h="",sn=S.snap;
+  if(!ready){h='<h2>Loading…</h2>'}
+  else if(S.receipt){var r=S.receipt;h='<h2>Booking confirmed</h2><p class="ok">Payment verified.</p><div class="ref">'+esc(r.txn)+'</div><div class="sum"><span>Date</span><span>'+r.date+'</span></div><div class="sum"><span>Session</span><span>'+sessLabel(r.sess)+'</span></div><div class="sum"><span>Slots</span><span>'+r.slots.join(", ")+'</span></div><div class="sum total"><span>Paid</span><span>'+money(r.total)+'</span></div><button class="btn ghost" id="again">Book more slots</button>'}
+  else if(S.pid&&S.phase==="verifying"){h='<h2>Waiting for verification</h2><p class="note" style="margin-top:0">Payment submitted. Your slots are held and become a confirmed booking once the owner verifies the payment. This page updates by itself, and you can come back to it later on this device.</p><div class="sum"><span>Date</span><span>'+sn.date+'</span></div><div class="sum"><span>Session</span><span>'+sessLabel(sn.sess)+'</span></div><div class="sum"><span>Slots</span><span>'+sn.slots.join(", ")+'</span></div><div class="sum"><span>Amount</span><span>'+money(sn.total)+'</span></div><div class="sum"><span>InstaPay ref</span><span>'+esc(sn.txn)+'</span></div>'}
+  else if(S.pid){h='<h2>Pay with InstaPay</h2><p class="note" style="margin-top:0">Open any bank or e-wallet app, scan this QR and send exactly <b>'+money(sn.total)+'</b>.</p><img class="qr" src="'+QR+'" alt="MariBank InstaPay QR for '+esc(ACCOUNT)+'"><p class="note" style="text-align:center;margin:0">'+esc(ACCOUNT)+'</p><div class="sum total"><span>Amount to send</span><span>'+money(sn.total)+'</span></div><p class="note">Slots held for <span class="timer" id="cd">'+fmt(secsLeft())+'</span>. After paying, enter the reference number from your payment receipt.</p><div class="field"><label for="tx">InstaPay reference number</label><input class="txn" id="tx" type="text" autocomplete="off"></div><button class="btn" id="sub"'+(busy?" disabled":"")+'>I’ve paid. Submit for verification</button><button class="btn ghost" id="cancel"'+(busy?" disabled":"")+'>Cancel and release slots</button><p class="err" id="err">'+esc(S.err)+'</p>'}
+  else{var tot=S.sel.length*PRICE;h='<h2>Your booking</h2><div class="sum"><span>Session</span><span>'+sessLabel(S.sess)+'</span></div><div class="sum"><span>Slots</span><span>'+(S.sel.length?S.sel.slice().sort(function(a,b){return a-b}).join(", "):"None selected")+'</span></div><div class="sum total"><span>Total ('+S.sel.length+' × '+money(PRICE)+')</span><span>'+money(tot)+'</span></div><div class="field"><label for="nm">Full name</label><input type="text" id="nm" value="'+esc(S.name)+'" autocomplete="name"></div><div class="field"><label for="ph">Mobile number</label><input type="tel" id="ph" value="'+esc(S.phone)+'" autocomplete="tel"></div><p class="note" style="margin:0 0 10px">Payment: InstaPay QR to MariBank.</p><button class="btn" id="pay"'+(S.sel.length&&!busy?"":" disabled")+'>Continue to payment</button><p class="err" id="err">'+esc(S.err)+'</p><p class="note">Slots are not booked until your payment is verified.</p>'}
+  p.innerHTML=h}
+function renderAll(){renderSessions();renderGrid();renderPanel();renderAdmin()}
+
+async function poll(){
+  try{var st=await api("/state?date="+S.date);BOOKED=st.booked;HOLDS=st.held;PRICE=st.price;document.getElementById("banner").textContent=""}
+  catch(e){document.getElementById("banner").textContent="Can’t reach the server. Retrying…"}
+  if(S.pid){try{var j=await api("/pay/"+S.pid);
+    if(j.status==="confirmed"){setSnap(j);S.receipt=S.snap;S.pid=null;S.phase=null;saveMine()}
+    else if(j.status==="verifying"){setSnap(j);S.phase="verifying"}
+    else if(j.status==="awaiting"){S.snap.expires=Date.now()+j.left*1000}
+    else{S.err=j.status==="rejected"?"Payment was not verified. Slots released.":"Your payment window ended. Slots released.";S.pid=null;S.phase=null;S.snap=null;saveMine()}
+  }catch(e){if(e.http===404){S.pid=null;S.snap=null;saveMine()}}}
+  if(isAdmin){try{var l=await api("/admin/payments");PENDING=l.filter(function(p){return p.status==="verifying"});DONE=l.filter(function(p){return p.status==="confirmed"})}catch(e){if(e.http===401){isAdmin=false;token=null;try{localStorage.removeItem("adm")}catch(x){}}}}
+  ready=true;if(!document.activeElement||document.activeElement.tagName!=="INPUT")renderAll();else{renderGrid();renderSessions();renderAdmin()}}
+async function startPay(){var nm=document.getElementById("nm").value.trim(),ph=document.getElementById("ph").value.trim();S.name=nm;S.phone=ph;S.err="";
+  if(!S.sel.length)S.err="Select at least one slot.";else if(!nm)S.err="Enter your full name.";else if(ph.replace(/\D/g,"").length<10)S.err="Enter a valid mobile number.";
+  if(S.err)return renderPanel();busy=true;renderPanel();
+  try{var j=await api("/hold",{date:S.date,sess:S.sess,slots:S.sel,name:nm,phone:ph});S.pid=j.id;S.phase="awaiting";setSnap(j);S.sel=[];saveMine()}
+  catch(e){S.err=e.error==="taken"?"Slot "+e.slots.join(", ")+" was just taken. Pick another.":e.error==="too_many"?"You have too many unpaid bookings. Finish or cancel one first.":"Could not reserve slots. Try again.";if(e.error==="taken")S.sel=S.sel.filter(function(n){return e.slots.indexOf(n)<0})}
+  busy=false;await poll();renderAll()}
+async function submitPay(){var t=document.getElementById("tx").value.trim();if(!/^[A-Za-z0-9-]{6,40}$/.test(t)){S.err="Enter the reference number from your InstaPay receipt (letters and numbers only).";return renderPanel()}
+  busy=true;renderPanel();try{var j=await api("/pay/"+S.pid+"/submit",{txn:t});setSnap(j);S.phase="verifying";S.err=""}
+  catch(e){S.err=e.error==="expired"?"Your payment window ended. Slots released.":"Could not submit. Try again.";if(e.error==="expired"){S.pid=null;S.snap=null;saveMine()}}
+  busy=false;renderAll()}
+async function cancelPay(){busy=true;try{await api("/pay/"+S.pid+"/cancel",{})}catch(e){}busy=false;S.pid=null;S.phase=null;S.snap=null;S.err="";saveMine();await poll();renderAll()}
+async function adminAct(id,ok){try{await api("/admin/"+id+"/"+(ok?"confirm":"reject"),{})}catch(e){alert("Could not update.")}await poll()}
+
+document.getElementById("date").value=S.date;document.getElementById("date").min=S.date;
+document.getElementById("date").addEventListener("change",function(e){if(!e.target.value||S.pid)return;S.date=e.target.value;S.sel=[];S.receipt=null;poll()});
+document.getElementById("sessions").addEventListener("click",function(e){var b=e.target.closest(".sess");if(!b||S.pid)return;S.sess=b.dataset.s;S.sel=[];S.receipt=null;renderAll()});
+document.getElementById("grid").addEventListener("click",function(e){var b=e.target.closest(".slot");if(!b||b.disabled||S.pid)return;S.receipt=null;var n=+b.dataset.n,i=S.sel.indexOf(n);if(i>-1)S.sel.splice(i,1);else S.sel.push(n);S.err="";
+  var nm=document.getElementById("nm"),ph=document.getElementById("ph");if(nm)S.name=nm.value;if(ph)S.phone=ph.value;renderGrid();renderPanel()});
+document.getElementById("panel").addEventListener("click",function(e){var id=e.target.id;
+  if(id==="pay")startPay();else if(id==="sub")submitPay();else if(id==="cancel")cancelPay();else if(id==="again"){S.receipt=null;renderAll()}});
+document.getElementById("dl").addEventListener("click",async function(){try{var r=await fetch("/api/admin/export.csv",{headers:{Authorization:"Bearer "+token}});if(!r.ok)throw 0;var u=URL.createObjectURL(await r.blob()),l=document.createElement("a");l.href=u;l.download="confirmed-bookings.csv";document.body.appendChild(l);l.click();l.remove()}catch(e){alert("Could not download.")}});
+document.getElementById("pending").addEventListener("click",function(e){var o=e.target.dataset.ok,n=e.target.dataset.no;if(o)adminAct(o,true);if(n)adminAct(n,false)});
+document.getElementById("admbtn").addEventListener("click",async function(){
+  if(isAdmin){isAdmin=false;token=null;try{localStorage.removeItem("adm")}catch(e){}return renderAdmin()}
+  var pw=prompt("Owner password");if(!pw)return;
+  try{var j=await api("/admin/login",{password:pw});token=j.token;isAdmin=true;try{localStorage.setItem("adm",token)}catch(e){}await poll()}catch(e){alert(e.error==="locked"?"Too many attempts. Try again in 10 minutes.":"Wrong password.")}});
+setInterval(function(){if(S.pid&&S.phase==="awaiting"){var cd=document.getElementById("cd");if(cd)cd.textContent=fmt(secsLeft())}},1000);
+setInterval(poll,3000);
+(async function(){try{var m=JSON.parse(localStorage.getItem("mine")||"null");if(m&&m.pid){var j=await api("/pay/"+m.pid);if(j.status==="awaiting"||j.status==="verifying"){S.pid=j.id;S.phase=j.status;setSnap(j);S.date=j.date;S.sess=j.sess;document.getElementById("date").value=j.date}}}catch(e){}
+  if(token){isAdmin=true}await poll();renderAll()})();
+renderAll();
+</script>
+</body>
+</html>
