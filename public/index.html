@@ -58,12 +58,14 @@ td{padding:0}
 input.txn{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
 .adm{display:flex;gap:8px;margin-top:8px}.adm .btn{padding:8px}.btn.red{background:var(--err);color:#fff}
 .link{background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer;font:inherit;font-size:.85rem;margin-top:14px}
+.okbar{background:color-mix(in srgb,var(--acc) 16%,var(--surface));border:1.5px solid var(--acc);border-radius:10px;padding:14px 16px;margin:0 0 14px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between}.okbar b{font-size:1.05rem}.okbar small{display:block;color:var(--mute);margin-top:2px;font-size:.88rem}.okbar button{background:none;border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:5px 10px;cursor:pointer;font:inherit;font-size:.85rem}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Slot booking</h1>
   <p class="sub">Pick a date and session, choose your slots, then pay by InstaPay QR. A booking is only confirmed after payment is confirmed.</p>
+  <div class="okbar" id="okbar" role="status" aria-live="polite" hidden></div>
   <p class="err" id="banner" style="margin:0 0 12px"></p>
   <div class="layout">
     <div>
@@ -74,7 +76,7 @@ input.txn{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius
         <div class="scroll"><table aria-label="Slots"><tbody id="grid"></tbody></table></div>
       </div>
       <button class="link" id="admbtn" style="margin:0 0 12px">Owner sign in</button>
-      <div class="card list" id="admin" hidden><h2>Admin: payments to verify</h2><div id="pending"></div><h2 style="margin-top:16px">Confirmed bookings</h2><div id="done"></div><button class="btn ghost" id="dl" style="margin-top:12px">Download spreadsheet (CSV)</button></div>
+      <div class="card list" id="admin" hidden><h2>Unfinished bookings (not paid yet)</h2><div id="unfin"></div><h2 style="margin-top:16px">Payments to verify</h2><div id="pending"></div><h2 style="margin-top:16px">Confirmed bookings</h2><div id="done"></div><button class="btn ghost" id="dl" style="margin-top:12px">Download spreadsheet (CSV)</button></div>
     </div>
     <aside class="card panel" id="panel" aria-live="polite"></aside>
   </div>
@@ -82,7 +84,7 @@ input.txn{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius
 <script>
 var QR="qr.jpg",TOTAL=50,COLS=10,PRICE=150,ACCOUNT="RENZ MARION LEROG · MariBank ****1235";
 var SESSIONS=[{id:"s1",label:"4:00 pm – 5:00 pm"},{id:"s2",label:"5:30 pm – 6:30 pm"},{id:"s3",label:"7:00 pm – 8:00 pm"}];
-var HOLDS={},BOOKED={},PENDING=[],DONE=[],token=null,isAdmin=false,busy=false,ready=false;
+var AWAIT=[],HOLDS={},BOOKED={},PENDING=[],DONE=[],token=null,isAdmin=false,busy=false,ready=false;
 var S={date:today(),sess:"s1",sel:[],name:"",phone:"",pid:null,phase:null,snap:null,err:"",receipt:null};
 try{token=localStorage.getItem("adm")}catch(e){}
 function today(){var d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
@@ -105,6 +107,7 @@ function renderGrid(){var h="";for(var r=0;r<TOTAL/COLS;r++){h+="<tr>";for(var c
   else if(S.sel.indexOf(n)>-1){cls+=" sel";lab="Slot "+n+", selected"}
   h+='<td><button class="'+cls+'" data-n="'+n+'"'+dis+' aria-label="'+lab+'">'+n+'</button></td>'}h+="</tr>"}document.getElementById("grid").innerHTML=h}
 function renderAdmin(){var a=document.getElementById("admin");a.hidden=!isAdmin;document.getElementById("admbtn").textContent=isAdmin?"Owner sign out":"Owner sign in";if(!isAdmin)return;
+  document.getElementById("unfin").innerHTML=AWAIT.length?AWAIT.map(function(p){return '<div class="bk"><b>'+esc(p.name)+'</b> · '+esc(p.phone)+'<br>'+p.date+' · '+sessLabel(p.sess)+' · Slots '+p.slots.join(", ")+' · '+money(p.total)+'<br><span style="color:var(--mute)">No payment reference yet · hold ends in <span class="left" data-exp="'+p.exp+'">'+fmt(Math.round((p.exp-Date.now())/1000))+'</span></span><div class="adm"><button class="btn red" data-rel="'+p.id+'">Release slots</button><button class="btn ghost" style="margin-top:0" data-ext="'+p.id+'">Hold 10 more min</button><button class="btn ghost" style="margin-top:0" data-paid="'+p.id+'">Mark as paid</button></div></div>'}).join(""):'<p class="note" style="margin:0">No unfinished bookings.</p>';
   document.getElementById("pending").innerHTML=PENDING.length?PENDING.map(function(p){return '<div class="bk"><b>'+esc(p.name)+'</b> · '+esc(p.phone)+'<br>'+p.date+' · '+sessLabel(p.sess)+' · Slots '+p.slots.join(", ")+'<br>Amount '+money(p.total)+' · InstaPay ref <b>'+esc(p.txn)+'</b><div class="adm"><button class="btn" data-ok="'+p.id+'">Confirm payment received</button><button class="btn red" data-no="'+p.id+'">Reject</button></div></div>'}).join(""):'<p class="note" style="margin:0">No payments waiting for verification.</p>';
   document.getElementById("done").innerHTML=DONE.length?DONE.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.sess<b.sess?-1:0}).map(function(p){return '<div class="bk"><b>'+esc(p.name)+'</b> · '+esc(p.phone)+' · '+p.date+' · '+sessLabel(p.sess)+' · Slots '+p.slots.join(", ")+'<br><span style="color:var(--mute)">'+money(p.total)+' · InstaPay ref '+esc(p.txn)+'</span></div>'}).join(""):'<p class="note" style="margin:0">Nothing confirmed yet.</p>'}
 function renderPanel(){var p=document.getElementById("panel"),h="",sn=S.snap;
@@ -114,18 +117,22 @@ function renderPanel(){var p=document.getElementById("panel"),h="",sn=S.snap;
   else if(S.pid){h='<h2>Pay with InstaPay</h2><p class="note" style="margin-top:0">Open any bank or e-wallet app, scan this QR and send exactly <b>'+money(sn.total)+'</b>.</p><img class="qr" src="'+QR+'" alt="MariBank InstaPay QR for '+esc(ACCOUNT)+'"><p class="note" style="text-align:center;margin:0">'+esc(ACCOUNT)+'</p><div class="sum total"><span>Amount to send</span><span>'+money(sn.total)+'</span></div><p class="note">Slots held for <span class="timer" id="cd">'+fmt(secsLeft())+'</span>. After paying, enter the reference number from your payment receipt.</p><div class="field"><label for="tx">InstaPay reference number</label><input class="txn" id="tx" type="text" autocomplete="off"></div><button class="btn" id="sub"'+(busy?" disabled":"")+'>I’ve paid. Submit for verification</button><button class="btn ghost" id="cancel"'+(busy?" disabled":"")+'>Cancel and release slots</button><p class="err" id="err">'+esc(S.err)+'</p>'}
   else{var tot=S.sel.length*PRICE;h='<h2>Your booking</h2><div class="sum"><span>Session</span><span>'+sessLabel(S.sess)+'</span></div><div class="sum"><span>Slots</span><span>'+(S.sel.length?S.sel.slice().sort(function(a,b){return a-b}).join(", "):"None selected")+'</span></div><div class="sum total"><span>Total ('+S.sel.length+' × '+money(PRICE)+')</span><span>'+money(tot)+'</span></div><div class="field"><label for="nm">Full name</label><input type="text" id="nm" value="'+esc(S.name)+'" autocomplete="name"></div><div class="field"><label for="ph">Mobile number</label><input type="tel" id="ph" value="'+esc(S.phone)+'" autocomplete="tel"></div><p class="note" style="margin:0 0 10px">Payment: InstaPay QR to MariBank.</p><button class="btn" id="pay"'+(S.sel.length&&!busy?"":" disabled")+'>Continue to payment</button><p class="err" id="err">'+esc(S.err)+'</p><p class="note">Slots are not booked until your payment is verified.</p>'}
   p.innerHTML=h}
-function renderAll(){renderSessions();renderGrid();renderPanel();renderAdmin()}
+function saveConf(){try{if(S.conf)localStorage.setItem("conf",JSON.stringify(S.conf));else localStorage.removeItem("conf")}catch(e){}}
+function renderOk(){var b=document.getElementById("okbar"),c=S.conf;if(!c){b.hidden=true;return}b.hidden=false;
+  b.innerHTML='<div><b>✓ Your booking is confirmed</b><small>'+c.date+' · '+sessLabel(c.sess)+' · Slot'+(c.slots.length>1?'s ':' ')+c.slots.join(", ")+' · Paid '+money(c.total)+'<br>Reference '+esc(c.txn)+'. Keep this for your records.</small></div><button id="okx">Dismiss</button>'}
+function confirmed(snap){S.receipt=snap;S.conf=snap;saveConf();try{document.title="✓ Booking confirmed";window.scrollTo(0,0)}catch(e){}}
+function renderAll(){renderOk();renderSessions();renderGrid();renderPanel();renderAdmin()}
 
 async function poll(){
   try{var st=await api("/state?date="+S.date);BOOKED=st.booked;HOLDS=st.held;PRICE=st.price;document.getElementById("banner").textContent=""}
   catch(e){document.getElementById("banner").textContent="Can’t reach the server. Retrying…"}
   if(S.pid){try{var j=await api("/pay/"+S.pid);
-    if(j.status==="confirmed"){setSnap(j);S.receipt=S.snap;S.pid=null;S.phase=null;saveMine()}
+    if(j.status==="confirmed"){setSnap(j);confirmed(S.snap);S.pid=null;S.phase=null;saveMine()}
     else if(j.status==="verifying"){setSnap(j);S.phase="verifying"}
     else if(j.status==="awaiting"){S.snap.expires=Date.now()+j.left*1000}
     else{S.err=j.status==="rejected"?"Payment was not verified. Slots released.":"Your payment window ended. Slots released.";S.pid=null;S.phase=null;S.snap=null;saveMine()}
   }catch(e){if(e.http===404){S.pid=null;S.snap=null;saveMine()}}}
-  if(isAdmin){try{var l=await api("/admin/payments");PENDING=l.filter(function(p){return p.status==="verifying"});DONE=l.filter(function(p){return p.status==="confirmed"})}catch(e){if(e.http===401){isAdmin=false;token=null;try{localStorage.removeItem("adm")}catch(x){}}}}
+  if(isAdmin){try{var l=await api("/admin/payments");AWAIT=l.filter(function(p){return p.status==="awaiting"}).map(function(p){p.exp=Date.now()+p.left*1000;return p});PENDING=l.filter(function(p){return p.status==="verifying"});DONE=l.filter(function(p){return p.status==="confirmed"})}catch(e){if(e.http===401){isAdmin=false;token=null;try{localStorage.removeItem("adm")}catch(x){}}}}
   ready=true;if(!document.activeElement||document.activeElement.tagName!=="INPUT")renderAll();else{renderGrid();renderSessions();renderAdmin()}}
 async function startPay(){var nm=document.getElementById("nm").value.trim(),ph=document.getElementById("ph").value.trim();S.name=nm;S.phone=ph;S.err="";
   if(!S.sel.length)S.err="Select at least one slot.";else if(!nm)S.err="Enter your full name.";else if(ph.replace(/\D/g,"").length<10)S.err="Enter a valid mobile number.";
@@ -138,7 +145,7 @@ async function submitPay(){var t=document.getElementById("tx").value.trim();if(!
   catch(e){S.err=e.error==="expired"?"Your payment window ended. Slots released.":"Could not submit. Try again.";if(e.error==="expired"){S.pid=null;S.snap=null;saveMine()}}
   busy=false;renderAll()}
 async function cancelPay(){busy=true;try{await api("/pay/"+S.pid+"/cancel",{})}catch(e){}busy=false;S.pid=null;S.phase=null;S.snap=null;S.err="";saveMine();await poll();renderAll()}
-async function adminAct(id,ok){try{await api("/admin/"+id+"/"+(ok?"confirm":"reject"),{})}catch(e){alert("Could not update.")}await poll()}
+async function adminAct(id,ok,extra){try{await api("/admin/"+id+"/"+(ok===true?"confirm":ok===false?"reject":ok),extra||{})}catch(e){alert("Could not update.")}await poll()}
 
 document.getElementById("date").value=S.date;document.getElementById("date").min=S.date;
 document.getElementById("date").addEventListener("change",function(e){if(!e.target.value||S.pid)return;S.date=e.target.value;S.sel=[];S.receipt=null;poll()});
@@ -148,14 +155,21 @@ document.getElementById("grid").addEventListener("click",function(e){var b=e.tar
 document.getElementById("panel").addEventListener("click",function(e){var id=e.target.id;
   if(id==="pay")startPay();else if(id==="sub")submitPay();else if(id==="cancel")cancelPay();else if(id==="again"){S.receipt=null;renderAll()}});
 document.getElementById("dl").addEventListener("click",async function(){try{var r=await fetch("/api/admin/export.csv",{headers:{Authorization:"Bearer "+token}});if(!r.ok)throw 0;var u=URL.createObjectURL(await r.blob()),l=document.createElement("a");l.href=u;l.download="confirmed-bookings.csv";document.body.appendChild(l);l.click();l.remove()}catch(e){alert("Could not download.")}});
+document.getElementById("unfin").addEventListener("click",function(e){var d=e.target.dataset;
+  if(d.rel&&confirm("Release these slots? The customer's hold will be cancelled."))adminAct(d.rel,"release");
+  else if(d.ext)adminAct(d.ext,"extend");
+  else if(d.paid){var t=prompt("Payment reference number (optional). Only mark as paid after you see the money in your MariBank app.");if(t!==null)adminAct(d.paid,"markpaid",{txn:t})}});
 document.getElementById("pending").addEventListener("click",function(e){var o=e.target.dataset.ok,n=e.target.dataset.no;if(o)adminAct(o,true);if(n)adminAct(n,false)});
 document.getElementById("admbtn").addEventListener("click",async function(){
   if(isAdmin){isAdmin=false;token=null;try{localStorage.removeItem("adm")}catch(e){}return renderAdmin()}
   var pw=prompt("Owner password");if(!pw)return;
   try{var j=await api("/admin/login",{password:pw});token=j.token;isAdmin=true;try{localStorage.setItem("adm",token)}catch(e){}await poll()}catch(e){alert(e.error==="locked"?"Too many attempts. Try again in 10 minutes.":"Wrong password.")}});
-setInterval(function(){if(S.pid&&S.phase==="awaiting"){var cd=document.getElementById("cd");if(cd)cd.textContent=fmt(secsLeft())}},1000);
+setInterval(function(){document.querySelectorAll(".left").forEach(function(el){el.textContent=fmt(Math.round((+el.dataset.exp-Date.now())/1000))});if(S.pid&&S.phase==="awaiting"){var cd=document.getElementById("cd");if(cd)cd.textContent=fmt(secsLeft())}},1000);
 setInterval(poll,3000);
-(async function(){try{var m=JSON.parse(localStorage.getItem("mine")||"null");if(m&&m.pid){var j=await api("/pay/"+m.pid);if(j.status==="awaiting"||j.status==="verifying"){S.pid=j.id;S.phase=j.status;setSnap(j);S.date=j.date;S.sess=j.sess;document.getElementById("date").value=j.date}}}catch(e){}
+function saveMine0(){try{localStorage.removeItem("mine")}catch(e){}}
+document.getElementById("okbar").addEventListener("click",function(e){if(e.target.id==="okx"){S.conf=null;saveConf();document.title="Slot Booking";renderOk()}});
+try{S.conf=JSON.parse(localStorage.getItem("conf")||"null")}catch(e){}
+(async function(){try{var m=JSON.parse(localStorage.getItem("mine")||"null");if(m&&m.pid){var j=await api("/pay/"+m.pid);if(j.status==="awaiting"||j.status==="verifying"){S.pid=j.id;S.phase=j.status;setSnap(j);S.date=j.date;S.sess=j.sess;document.getElementById("date").value=j.date}else if(j.status==="confirmed"){setSnap(j);confirmed(S.snap);saveMine0()}}}catch(e){}
   if(token){isAdmin=true}await poll();renderAll()})();
 renderAll();
 </script>

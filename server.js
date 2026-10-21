@@ -47,13 +47,19 @@ http.createServer(async(req,res)=>{
       if(!same(String(b.password||''),PASS)){f.n++;return send(res,401,{error:'wrong'})}
       const t=crypto.randomBytes(24).toString('hex');tokens.add(t);return send(res,200,{token:t})}
     if(p.startsWith('/api/admin/')){if(!isAdmin(req))return send(res,401,{error:'auth'});
-      if(p==='/api/admin/payments'){const l=Object.values(db.payments).filter(x=>['verifying','confirmed'].includes(x.status)).map(x=>({...pub(x),name:x.name,phone:x.phone}));return send(res,200,l)}
+      if(p==='/api/admin/payments'){const l=Object.values(db.payments).filter(x=>['awaiting','verifying','confirmed'].includes(x.status)).map(x=>({...pub(x),name:x.name,phone:x.phone}));return send(res,200,l)}
       if(p==='/api/admin/export.csv'){const L={s1:'4:00 pm - 5:00 pm',s2:'5:30 pm - 6:30 pm',s3:'7:00 pm - 8:00 pm'};
         const q=v=>{v=String(v==null?'':v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return '"'+v.replace(/"/g,'""')+'"'};
         const rows=[['Date','Session','Slot','Name','Mobile','InstaPay Reference','Amount (PHP)','Booking ID','Confirmed At']];
         Object.values(db.payments).filter(x=>x.status==='confirmed').sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.sess<b.sess?-1:a.created-b.created).forEach(x=>x.slots.forEach(n=>rows.push([x.date,L[x.sess],n,x.name,x.phone,x.txn,x.total/x.slots.length,x.id,x.confirmedAt?new Date(x.confirmedAt).toISOString():''])));
         res.writeHead(200,{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="confirmed-bookings.csv"','Cache-Control':'no-store'});
         return res.end('\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n'))}
+      m=p.match(/^\/api\/admin\/([0-9a-f]{24})\/(release|extend|markpaid)$/);
+      if(m&&req.method==='POST'){const x=db.payments[m[1]],b=await body(req);if(!x||!['awaiting','verifying'].includes(x.status))return send(res,409,{error:'not_open'});
+        if(m[2]==='release')x.status='cancelled';
+        else if(m[2]==='extend'){if(x.status!=='awaiting')return send(res,409,{error:'not_open'});x.expires=Date.now()+HOLD_MS}
+        else{const t=String(b.txn||'').trim().slice(0,40);x.status='confirmed';x.txn=t||x.txn||'MANUAL';x.confirmedAt=Date.now()}
+        save();return send(res,200,pub(x))}
       m=p.match(/^\/api\/admin\/([0-9a-f]{24})\/(confirm|reject)$/);
       if(m&&req.method==='POST'){const x=db.payments[m[1]];if(!x||x.status!=='verifying')return send(res,409,{error:'not_pending'});x.status=m[2]==='confirm'?'confirmed':'rejected';if(m[2]==='confirm')x.confirmedAt=Date.now();save();return send(res,200,pub(x))}}
     send(res,404,{error:'not_found'})
